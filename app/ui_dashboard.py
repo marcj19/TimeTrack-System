@@ -54,7 +54,7 @@ class DashboardScreen:
         """Constrói conteúdo para colaborador"""
         # Status atual
         status_text = "Trabalhando" if self.is_checked_in else "Fora do expediente"
-        status_color = ft.colors.GREEN if self.is_checked_in else ft.colors.GREY
+        status_color = ft.Colors.GREEN if self.is_checked_in else ft.Colors.GREY
         
         # Horas do dia
         daily_hours = 0
@@ -65,8 +65,8 @@ class DashboardScreen:
             daily_hours = delta.total_seconds() / 3600
             
         # Cards de estatísticas
-        status_card = StatsCard("Status", status_text, ft.icons.SCHEDULE, status_color)
-        hours_card = StatsCard("Horas Hoje", f"{daily_hours:.2f}h", ft.icons.TIMER, ft.colors.BLUE)
+        status_card = StatsCard("Status", status_text, ft.Icons.SCHEDULE, status_color)
+        hours_card = StatsCard("Horas Hoje", f"{daily_hours:.2f}h", ft.Icons.TIMER, ft.Colors.BLUE)
         
         # Card de controle de ponto
         time_card = TimeCard(
@@ -86,7 +86,7 @@ class DashboardScreen:
         
         return [
             ft.Text(f"Olá, {self.user['full_name']}!", size=24, weight=ft.FontWeight.BOLD),
-            ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             
             # Cards superiores
             ft.Row([
@@ -95,7 +95,7 @@ class DashboardScreen:
                 time_card.build()
             ], spacing=20),
             
-            ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             
             # Conteúdo principal
             ft.Row([
@@ -104,7 +104,7 @@ class DashboardScreen:
                     history_table.build()
                 ], expand=1),
                 
-                ft.VerticalDivider(width=20, color=ft.colors.TRANSPARENT),
+                ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
                 
                 ft.Column([
                     ft.Text("Horas da Semana", size=20, weight=ft.FontWeight.BOLD),
@@ -121,8 +121,8 @@ class DashboardScreen:
         total_users = len(users_data)
         
         # Cards de estatísticas
-        users_card = StatsCard("Total Usuários", str(total_users), ft.icons.GROUP, ft.colors.BLUE)
-        online_card = StatsCard("Online Agora", str(online_count), ft.icons.CIRCLE, ft.colors.GREEN)
+        users_card = StatsCard("Total Usuários", str(total_users), ft.Icons.GROUP, ft.Colors.BLUE)
+        online_card = StatsCard("Online Agora", str(online_count), ft.Icons.CIRCLE, ft.Colors.GREEN)
         
         # Tabela de usuários
         users_table = UsersTable(users_data)
@@ -133,7 +133,7 @@ class DashboardScreen:
         
         return [
             ft.Text("Painel Administrativo", size=24, weight=ft.FontWeight.BOLD),
-            ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             
             # Cards superiores
             ft.Row([
@@ -142,7 +142,7 @@ class DashboardScreen:
                 ft.Container(expand=True)  # Espaçador
             ], spacing=20),
             
-            ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             
             # Conteúdo principal
             ft.Row([
@@ -151,7 +151,7 @@ class DashboardScreen:
                     users_table.build()
                 ], expand=1),
                 
-                ft.VerticalDivider(width=20, color=ft.colors.TRANSPARENT),
+                ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
                 
                 ft.Column([
                     ft.Text("Relatório Semanal", size=20, weight=ft.FontWeight.BOLD),

@@ -96,12 +96,12 @@ class UsersTable:
                     ft.DataColumn(ft.Text("Horas", weight=ft.FontWeight.BOLD))
                 ],
                 rows=rows,
-                border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=10,
                 show_checkbox_column=False
             ),
             height=400,
-            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=10,
             padding=10
         )

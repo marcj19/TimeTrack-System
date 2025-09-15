@@ -12,7 +12,7 @@ class WeeklyChart:
             return ft.Container(
                 content=ft.Column([
                     ft.Text("Sem dados para exibir", text_align=ft.TextAlign.CENTER),
-                    ft.Icon(ft.icons.BAR_CHART, size=60, color=ft.colors.GREY_400)
+                    ft.Icon(ft.Icons.BAR_CHART, size=60, color=ft.Colors.GREY_400)
                 ], alignment=ft.MainAxisAlignment.CENTER),
                 height=300,
                 width=400
@@ -53,7 +53,7 @@ class WeeklyChart:
             bars.append(
                 ft.Column([
                     ft.Container(
-                        bgcolor=ft.colors.BLUE,
+                        bgcolor=ft.Colors.BLUE,
                         height=bar_height,
                         width=40,
                         border_radius=ft.border_radius.only(
@@ -81,12 +81,12 @@ class WeeklyChart:
                 ft.Text(
                     f"Máximo: {max_hours:.1f}h",
                     size=12,
-                    color=ft.colors.GREY,
+                    color=ft.Colors.GREY,
                     text_align=ft.TextAlign.CENTER
                 )
             ], alignment=ft.MainAxisAlignment.END),
             height=300,
             padding=20,
-            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=10
         )

@@ -15,7 +15,7 @@ class StatsCard:
                 content=ft.Row([
                     ft.Icon(self.icon, size=40, color=self.color),
                     ft.Column([
-                        ft.Text(self.title, size=14, color=ft.colors.GREY),
+                        ft.Text(self.title, size=14, color=ft.Colors.GREY),
                         ft.Text(self.value, size=24, weight=ft.FontWeight.BOLD)
                     ], spacing=5)
                 ], alignment=ft.MainAxisAlignment.START, spacing=15),
@@ -35,8 +35,8 @@ class TimeCard:
     def build(self):
         """Constrói card de controle de ponto"""
         button_text = "Check-out" if self.is_checked_in else "Check-in"
-        button_color = ft.colors.RED if self.is_checked_in else ft.colors.GREEN
-        button_icon = ft.icons.LOGOUT if self.is_checked_in else ft.icons.LOGIN
+        button_color = ft.Colors.RED if self.is_checked_in else ft.Colors.GREEN
+        button_icon = ft.Icons.LOGOUT if self.is_checked_in else ft.Icons.LOGIN
         on_click = self.on_checkout if self.is_checked_in else self.on_checkin
         
         time_info = ft.Text("--:--", size=16, weight=ft.FontWeight.BOLD)
@@ -44,7 +44,7 @@ class TimeCard:
             time_info = ft.Text(
                 f"Entrada: {self.check_in_time.strftime('%H:%M')}",
                 size=14,
-                color=ft.colors.GREY
+                color=ft.Colors.GREY
             )
             
         return ft.Card(
@@ -58,7 +58,7 @@ class TimeCard:
                         on_click=on_click,
                         style=ft.ButtonStyle(
                             bgcolor=button_color,
-                            color=ft.colors.WHITE
+                            color=ft.Colors.WHITE
                         ),
                         width=150
                     )

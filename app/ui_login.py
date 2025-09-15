@@ -27,7 +27,8 @@ class LoginScreen:
     def show_error(self, message):
         """Exibe mensagem de erro"""
         self.error_text.value = message
-        self.error_text.color = ft.colors.RED
+        # Corrigido para ft.Colors (maiúsculo) para consistência
+        self.error_text.color = ft.Colors.RED 
         self.error_text.update()
         
     def build(self):
@@ -116,27 +117,30 @@ class LoginScreen:
             elevation=10
         )
         
-        # Layout principal
-        return ft.Container(
-            content=ft.Stack([
-                ft.Container(
-                    content=ft.Column([
-                        login_card
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
-                    ),
-                    expand=True
-                ),
-                ft.Container(
-                    content=theme_btn,
-                    alignment=ft.alignment.top_right,
-                    padding=20
+        # Layout principal reestruturado
+        return ft.Stack([
+            # Camada 1: Fundo com Gradiente (embaixo de tudo)
+            ft.Container(
+                expand=True,
+                gradient=ft.LinearGradient(
+                    begin=ft.alignment.top_center,
+                    end=ft.alignment.bottom_center,
+                    colors=[
+                        ft.Colors.BLUE_50,
+                        ft.Colors.INDIGO_100
+                    ]
                 )
-            ]),
-            expand=True,
-            gradient=ft.LinearGradient([
-                ft.Colors.BLUE_50,
-                ft.Colors.INDIGO_100
-            ])
-        )
+            ),
+            # Camada 2: Conteúdo Centralizado
+            ft.Container(
+                expand=True,
+                alignment=ft.alignment.center,
+                content=login_card
+            ),
+            # Camada 3: Botão de Tema (no topo, canto direito)
+            ft.Container(
+                content=theme_btn,
+                alignment=ft.alignment.top_right,
+                padding=20
+            )
+        ])
