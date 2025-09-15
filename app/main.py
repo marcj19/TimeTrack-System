@@ -28,7 +28,7 @@ class TimeTrackApp:
         
         # Configurar tema personalizado
         page.theme = ft.Theme(
-            color_scheme_seed=ft.colors.BLUE,
+            color_scheme_seed="blue",  # <-- CORREÇÃO APLICADA AQUI
             use_material3=True
         )
         

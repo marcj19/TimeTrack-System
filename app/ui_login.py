@@ -35,14 +35,14 @@ class LoginScreen:
         # Campos de entrada
         self.username_field = ft.TextField(
             label="Usuário",
-            prefix_icon=ft.icons.PERSON,
+            prefix_icon=ft.Icons.PERSON,
             border_radius=10,
             width=300
         )
         
         self.password_field = ft.TextField(
             label="Senha",
-            prefix_icon=ft.icons.LOCK,
+            prefix_icon=ft.Icons.LOCK,
             password=True,
             can_reveal_password=True,
             border_radius=10,
@@ -63,7 +63,7 @@ class LoginScreen:
         
         # Botão tema
         theme_btn = ft.IconButton(
-            icon=ft.icons.BRIGHTNESS_6,
+            icon=ft.Icons.BRIGHTNESS_6,
             tooltip="Alternar tema",
             on_click=lambda _: self.toggle_theme()
         )
@@ -78,7 +78,7 @@ class LoginScreen:
         login_card = ft.Card(
             content=ft.Container(
                 content=ft.Column([
-                    ft.Icon(ft.icons.ACCESS_TIME, size=60, color=ft.colors.BLUE),
+                    ft.Icon(ft.Icons.ACCESS_TIME, size=60, color=ft.Colors.BLUE),
                     ft.Text(
                         "TimeTrack",
                         size=32,
@@ -89,19 +89,19 @@ class LoginScreen:
                         "Sistema de Controle de Ponto",
                         size=16,
                         text_align=ft.TextAlign.CENTER,
-                        color=ft.colors.GREY
+                        color=ft.Colors.GREY
                     ),
-                    ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
                     self.username_field,
                     self.password_field,
                     self.error_text,
-                    ft.Divider(height=10, color=ft.colors.TRANSPARENT),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                     login_btn,
-                    ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
                     ft.Text(
                         "Login padrão: admin / admin123",
                         size=12,
-                        color=ft.colors.GREY,
+                        color=ft.Colors.GREY,
                         text_align=ft.TextAlign.CENTER
                     )
                 ],
@@ -136,7 +136,7 @@ class LoginScreen:
             ]),
             expand=True,
             gradient=ft.LinearGradient([
-                ft.colors.BLUE_50,
-                ft.colors.INDIGO_100
+                ft.Colors.BLUE_50,
+                ft.Colors.INDIGO_100
             ])
         )
