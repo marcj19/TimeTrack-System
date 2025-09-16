@@ -52,7 +52,7 @@ class TimeTrackApp:
             dark_mode=self.dark_mode
         )
         self.page.clean()
-        self.page.add(dashboard.build())
+        self.page.add(dashboard.build(self.page))
         self.page.update()
         
     def toggle_theme(self):

@@ -1,10 +1,11 @@
 import flet as ft
-from datetime import datetime, timedelta
-import pandas as pd
+from datetime import datetime
 from components.navbar import NavBar
 from components.cards import StatsCard, TimeCard
 from components.charts import WeeklyChart
 from components.tables import HistoryTable, UsersTable
+from components.activity_monitor_ui import ActivityCard, ActivityGraph
+from activity_monitor import ActivityMonitor
 
 class DashboardScreen:
     def __init__(self, user, db, auth, on_logout, toggle_theme, dark_mode):
@@ -15,10 +16,338 @@ class DashboardScreen:
         self.toggle_theme = toggle_theme
         self.dark_mode = dark_mode
         self.current_timetrack = None
+        self.current_break = None
         self.is_checked_in = False
-        self.page_content = ft.Column()
-        self.load_current_status()
+        self.is_on_break = False
+        self.show_projects = False  # Controla a exibição da tela de projetos
         
+        # Componentes e estado do monitoramento de atividade
+        self.activity_monitor = None
+        self.current_activity_level = 0
+        self.activity_update_timer = None
+        
+        # Inicia monitoramento se o usuário estiver em um timetrack ativo e tiver consentido
+        self.load_current_status()
+        if (self.is_checked_in and self.current_timetrack and 
+            self.user.get('activity_tracking_consent')):
+            self.start_activity_monitoring(self.current_timetrack['id'])
+
+        # Dropdown para projetos e tarefas
+        self.project_dropdown = ft.Dropdown(
+            label="Selecione um Projeto",
+            options=[],
+            width=250,
+            border_radius=10,
+            on_change=self.on_project_selected
+        )
+        
+        # Dropdown para tarefas
+        self.task_dropdown = ft.Dropdown(
+            label="Selecione uma Tarefa (opcional)",
+            options=[],
+            width=250,
+            border_radius=10
+        )
+
+        # Campo de data e hora para registro manual
+        self.manual_date = ft.DatePicker(
+            label="Data",
+            first_date=datetime(2024, 1, 1),
+            last_date=datetime(2025, 12, 31)
+        )
+        self.checkin_time = ft.TimePicker(
+            label="Horário de Entrada",
+            help_text="Selecione o horário de início"
+        )
+        self.checkout_time = ft.TimePicker(
+            label="Horário de Saída",
+            help_text="Selecione o horário de fim"
+        )
+        self.reason_field = ft.TextField(
+            label="Motivo do Ajuste",
+            multiline=True,
+            min_lines=2,
+            max_lines=4
+        )
+        self.manual_project_dropdown = ft.Dropdown(
+            label="Projeto",
+            options=[],
+            width=250,
+            border_radius=10
+        )
+        self.manual_error_text = ft.Text(value="", color=ft.Colors.RED, size=12)
+
+        # Dialog de registro manual
+        self.manual_entry_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Registro Manual de Ponto"),
+            content=ft.Column([
+                ft.Text("Selecione a data e horários do registro:", size=14),
+                self.manual_date,
+                ft.Row([self.checkin_time, self.checkout_time], spacing=10),
+                self.manual_project_dropdown,
+                self.reason_field,
+                self.manual_error_text
+            ], tight=True, spacing=15),
+            actions=[
+                ft.TextButton("Cancelar", on_click=self.close_dialog),
+                ft.FilledButton("Salvar", on_click=self.handle_manual_entry),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        # Dialog para aprovações pendentes
+        self.approvals_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Aprovações Pendentes"),
+            content=ft.Column([], scroll=ft.ScrollMode.AUTO, height=400),
+            actions=[
+                ft.TextButton("Fechar", on_click=self.close_dialog),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        
+        self.project_dropdown = ft.Dropdown(
+            label="Selecione um Projeto",
+            options=[],
+            width=250,
+            border_radius=10
+        )
+        
+        self.page_content = ft.Column()
+        
+        # --- Componentes do Dialog de Cadastro ---
+        self.reg_fullname_field = ft.TextField(label="Nome Completo", autofocus=True)
+        self.reg_username_field = ft.TextField(label="Usuário (para login)")
+        self.reg_password_field = ft.TextField(label="Senha Temporária", password=True)
+        self.reg_error_text = ft.Text(value="", color=ft.Colors.RED, size=12)
+
+        self.register_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Cadastrar Novo Colaborador"),
+            content=ft.Column([
+                self.reg_fullname_field,
+                self.reg_username_field,
+                self.reg_password_field,
+                self.reg_error_text
+            ], tight=True, spacing=15),
+            actions=[
+                ft.TextButton("Cancelar", on_click=self.close_dialog),
+                ft.FilledButton("Salvar", on_click=self.handle_register_user),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        # --- Fim dos novos componentes ---
+
+        self.load_current_status()
+        self.load_projects()
+
+    # --- Funções para o Cadastro de Usuário ---
+    def open_register_dialog(self, e):
+        """Abre a janela de diálogo para cadastrar um novo usuário."""
+        self.reg_fullname_field.value = ""
+        self.reg_username_field.value = ""
+        self.reg_password_field.value = ""
+        self.reg_error_text.value = ""
+        
+        self.page.dialog = self.register_dialog
+        self.register_dialog.open = True
+        self.page.update()
+
+    def handle_register_user(self, e):
+        """Valida os dados e chama o AuthManager para registrar o usuário."""
+        fullname = self.reg_fullname_field.value.strip()
+        username = self.reg_username_field.value.strip()
+        password = self.reg_password_field.value.strip()
+
+        if not fullname or not username or not password:
+            self.reg_error_text.value = "Todos os campos são obrigatórios."
+            self.page.dialog.update()
+            return
+        
+        user_id = self.auth.register_user(username, password, fullname, 'colaborador')
+
+        if user_id:
+            self.close_dialog(e)
+            self.show_snackbar(f"Usuário '{fullname}' cadastrado com sucesso!")
+            self.refresh_dashboard()
+        else:
+            self.reg_error_text.value = "Erro: Nome de usuário já existe ou outro erro ocorreu."
+            self.page.dialog.update()
+
+    def close_dialog(self, e):
+        """Fecha qualquer diálogo aberto"""
+        if hasattr(self.page, 'dialog') and self.page.dialog:
+            self.page.dialog.open = False
+            self.page.update()
+        
+    def show_snackbar(self, message):
+        """Exibe uma mensagem rápida no rodapé da página."""
+        self.page.snack_bar = ft.SnackBar(ft.Text(message), duration=3000)
+        self.page.snack_bar.open = True
+        self.page.update()
+
+    def open_manual_entry_dialog(self, e):
+        """Abre o diálogo de registro manual de ponto"""
+        # Reset fields
+        self.manual_date.value = None
+        self.checkin_time.value = None
+        self.checkout_time.value = None
+        self.reason_field.value = ""
+        self.manual_error_text.value = ""
+        self.manual_project_dropdown.value = None
+        
+        # Update project options
+        projects = self.db.get_active_projects()
+        if projects:
+            self.manual_project_dropdown.options = [
+                ft.dropdown.Option(key=str(proj['id']), text=proj['name']) 
+                for proj in projects
+            ]
+        
+        self.page.dialog = self.manual_entry_dialog
+        self.manual_entry_dialog.open = True
+        self.page.update()
+        
+    def handle_manual_entry(self, e):
+        """Processa o registro manual de ponto"""
+        if not self.manual_date.value:
+            self.manual_error_text.value = "Selecione uma data."
+            self.page.dialog.update()
+            return
+            
+        if not self.checkin_time.value or not self.checkout_time.value:
+            self.manual_error_text.value = "Selecione os horários de entrada e saída."
+            self.page.dialog.update()
+            return
+            
+        if not self.manual_project_dropdown.value:
+            self.manual_error_text.value = "Selecione um projeto."
+            self.page.dialog.update()
+            return
+            
+        if not self.reason_field.value.strip():
+            self.manual_error_text.value = "Informe o motivo do ajuste."
+            self.page.dialog.update()
+            return
+
+        try:
+            # Criar objetos datetime completos
+            check_in = datetime.combine(
+                self.manual_date.value,
+                datetime.strptime(self.checkin_time.value, '%H:%M').time()
+            )
+            check_out = datetime.combine(
+                self.manual_date.value,
+                datetime.strptime(self.checkout_time.value, '%H:%M').time()
+            )
+            
+            # Validar se check_out é depois de check_in
+            if check_out <= check_in:
+                self.manual_error_text.value = "Horário de saída deve ser posterior ao de entrada."
+                self.page.dialog.update()
+                return
+            
+            # Criar o registro manual
+            project_id = int(self.manual_project_dropdown.value)
+            result = self.db.create_manual_entry(
+                self.user['id'],
+                project_id,
+                check_in,
+                check_out,
+                self.reason_field.value.strip()
+            )
+            
+            if result:
+                self.close_dialog(e)
+                self.show_snackbar("Registro manual criado e enviado para aprovação!")
+                self.refresh_dashboard()
+            else:
+                self.manual_error_text.value = "Erro ao criar registro manual."
+                self.page.dialog.update()
+                
+        except ValueError as err:
+            self.manual_error_text.value = f"Erro nos dados: {str(err)}"
+            self.page.dialog.update()
+            
+    def show_pending_approvals(self, pending_approvals):
+        """Mostra o diálogo com as aprovações pendentes"""
+        if not pending_approvals:
+            self.show_snackbar("Não há registros manuais pendentes de aprovação.")
+            return
+            
+        content_list = []
+        for entry in pending_approvals:
+            card = ft.Card(
+                content=ft.Container(
+                    content=ft.Column([
+                        ft.Text(
+                            f"Colaborador: {entry['full_name']}",
+                            size=16,
+                            weight=ft.FontWeight.BOLD
+                        ),
+                        ft.Text(
+                            f"Projeto: {entry['project_name']}",
+                            size=14,
+                            color=ft.colors.BLUE
+                        ),
+                        ft.Text(
+                            f"Data: {entry['date'].strftime('%d/%m/%Y')}",
+                            size=14
+                        ),
+                        ft.Text(
+                            f"Horário: {entry['check_in'].strftime('%H:%M')} - {entry['check_out'].strftime('%H:%M')}",
+                            size=14
+                        ),
+                        ft.Text(
+                            f"Total: {entry['total_hours']:.2f}h",
+                            size=14
+                        ),
+                        ft.Text(
+                            f"Motivo: {entry['manual_entry_reason']}",
+                            size=14,
+                            italic=True
+                        ),
+                        ft.Row([
+                            ft.OutlinedButton(
+                                "❌ Rejeitar",
+                                on_click=lambda e, id=entry['id']: self.handle_entry_rejection(id)
+                            ),
+                            ft.FilledButton(
+                                "✅ Aprovar",
+                                on_click=lambda e, id=entry['id']: self.handle_entry_approval(id)
+                            ),
+                        ], alignment=ft.MainAxisAlignment.END)
+                    ], spacing=10),
+                    padding=20
+                ),
+                margin=ft.margin.only(bottom=10)
+            )
+            content_list.append(card)
+            
+        self.approvals_dialog.content.controls = content_list
+        self.page.dialog = self.approvals_dialog
+        self.approvals_dialog.open = True
+        self.page.update()
+        
+    def handle_entry_approval(self, timetrack_id):
+        """Aprova um registro manual"""
+        result = self.db.approve_manual_entry(timetrack_id, self.user['id'])
+        if result:
+            self.show_snackbar("Registro aprovado com sucesso!")
+            self.close_dialog(None)
+            self.refresh_dashboard()
+        else:
+            self.show_snackbar("Erro ao aprovar registro.")
+            
+    def handle_entry_rejection(self, timetrack_id):
+        """Rejeita um registro manual (remove o registro)"""
+        # Aqui você pode implementar a lógica de rejeição
+        # Por exemplo, movendo o registro para uma tabela de histórico
+        # ou simplesmente deletando
+        self.show_snackbar("Função de rejeição a ser implementada.")
+    # --- Fim das Funções de Cadastro ---
+
     def load_current_status(self):
         """Carrega status atual do usuário"""
         today_records = self.db.get_user_timetrack_today(self.user['id'])
@@ -26,133 +355,294 @@ class DashboardScreen:
             self.current_timetrack = today_records[0]
             self.is_checked_in = self.current_timetrack['check_out'] is None
             
+            if self.is_checked_in:
+                active_break = self.db.get_active_break(self.current_timetrack['id'])
+                if active_break and len(active_break) > 0:
+                    self.current_break = active_break[0]
+                    self.is_on_break = True
+                else:
+                    self.current_break = None
+                    self.is_on_break = False
+        else:
+            self.current_timetrack = None
+            self.current_break = None
+            self.is_checked_in = False
+            self.is_on_break = False
+
+    def load_projects(self):
+        """Carrega os projetos ativos do banco de dados e preenche o dropdown."""
+        projects = self.db.get_active_projects()
+        
+        if projects:
+            self.project_dropdown.options = [
+                ft.dropdown.Option(key=proj['id'], text=proj['name']) for proj in projects
+            ]
+            
+        if self.is_checked_in and self.current_timetrack and self.current_timetrack.get('project_id'):
+            self.project_dropdown.value = self.current_timetrack['project_id']
+            self.project_dropdown.disabled = True
+        else:
+            self.project_dropdown.disabled = False
+            
+    def on_project_selected(self, e):
+        """Atualiza as tarefas disponíveis quando um projeto é selecionado"""
+        if e.data:  # Se um projeto foi selecionado
+            tasks = self.db.get_project_tasks(int(e.data))
+            if tasks:
+                self.task_dropdown.options = [
+                    ft.dropdown.Option(
+                        key=str(task['id']),
+                        text=f"{task['name']} ({task['status']})"
+                    )
+                    for task in tasks
+                ]
+            else:
+                self.task_dropdown.options = []
+            self.task_dropdown.value = None
+            self.task_dropdown.update()
+                
     def handle_checkin(self, e):
-        """Processa check-in"""
+        """Processa check-in, agora exigindo um projeto."""
+        project_id = self.project_dropdown.value
+        task_id = self.task_dropdown.value
+        
+        if not project_id:
+            self.show_snackbar("ERRO: Por favor, selecione um projeto antes de iniciar.")
+            return
+
         if not self.is_checked_in:
-            result = self.db.check_in_user(self.user['id'])
+            # Se uma tarefa foi selecionada, atualiza seu status para 'in_progress'
+            if task_id:
+                self.db.update_task_status(int(task_id), 'in_progress')
+                
+            result = self.db.check_in_user(self.user['id'], project_id)
             if result:
+                self.show_snackbar("Check-in realizado com sucesso!")
                 self.load_current_status()
+                self.load_projects()
+                
+                # Inicia monitoramento de atividade se consentido
+                if self.user.get('activity_tracking_consent'):
+                    self.start_activity_monitoring(result)  # result é o timetrack_id
+                    
                 self.refresh_dashboard()
                 
     def handle_checkout(self, e):
         """Processa check-out"""
         if self.is_checked_in and self.current_timetrack:
+            # Para o monitoramento de atividade se estiver ativo
+            if hasattr(self, 'activity_monitor') and self.activity_monitor:
+                self.stop_activity_monitoring()
+
             result = self.db.check_out_user(self.current_timetrack['id'])
             if result:
+                self.show_snackbar("Check-out realizado com sucesso!")
                 self.load_current_status()
+                self.project_dropdown.value = None
+                self.load_projects()
                 self.refresh_dashboard()
                 
     def refresh_dashboard(self):
-        """Atualiza dashboard"""
+        """Atualiza o conteúdo principal do dashboard."""
         if self.auth.is_admin(self.user):
             self.page_content.controls = self.build_admin_content()
         else:
             self.page_content.controls = self.build_colaborador_content()
+        
         self.page_content.update()
         
+    def start_activity_monitoring(self, timetrack_id):
+        """Inicia o monitoramento de atividade do usuário."""
+        if not hasattr(self, 'activity_monitor') or not self.activity_monitor:
+            self.activity_monitor = ActivityMonitor()
+            self.activity_monitor.start()
+            
+            # Configura o timer para atualizar o nível de atividade
+            def update_activity():
+                if self.activity_monitor and self.activity_monitor.is_running:
+                    current_level = self.activity_monitor.get_activity_level()
+                    if current_level != self.current_activity_level:
+                        self.current_activity_level = current_level
+                        self.db.update_activity_level(timetrack_id, current_level)
+                        # Atualiza o gráfico de atividade se estiver visível
+                        self.refresh_dashboard()
+                    
+            # Atualiza a cada 5 minutos
+            self.activity_update_timer = ft.Timer(update_activity, 300)
+            self.activity_update_timer.start()
+            
+    def stop_activity_monitoring(self):
+        """Para o monitoramento de atividade do usuário."""
+        if hasattr(self, 'activity_monitor') and self.activity_monitor:
+            self.activity_monitor.stop()
+            self.activity_monitor = None
+            
+        if hasattr(self, 'activity_update_timer') and self.activity_update_timer:
+            self.activity_update_timer.stop()
+            self.activity_update_timer = None
+    def handle_break_start(self, e):
+        """Inicia uma pausa"""
+        if self.is_checked_in and not self.is_on_break and self.current_timetrack:
+            break_type = self.time_card.break_type_dropdown.value or 'rest'
+            result = self.db.start_break(self.current_timetrack['id'], break_type)
+            if result:
+                self.show_snackbar("Pausa iniciada com sucesso!")
+                self.load_current_status()
+                self.refresh_dashboard()
+                
+    def handle_break_end(self, e):
+        """Finaliza uma pausa"""
+        if self.is_checked_in and self.is_on_break and self.current_break:
+            result = self.db.end_break(self.current_break['id'])
+            if result:
+                self.show_snackbar("Pausa finalizada com sucesso!")
+                self.load_current_status()
+                self.refresh_dashboard()
+    
     def build_colaborador_content(self):
-        """Constrói conteúdo para colaborador"""
-        # Status atual
-        status_text = "Trabalhando" if self.is_checked_in else "Fora do expediente"
-        status_color = ft.Colors.GREEN if self.is_checked_in else ft.Colors.GREY
+        """Constrói o conteúdo da UI para um colaborador."""
+        if self.is_on_break:
+            status_text = "Em Pausa"
+            status_color = ft.Colors.ORANGE
+        elif self.is_checked_in:
+            status_text = "Trabalhando"
+            status_color = ft.Colors.GREEN
+        else:
+            status_text = "Fora do expediente"
+            status_color = ft.Colors.GREY
         
-        # Horas do dia
-        daily_hours = 0
-        if self.current_timetrack and self.current_timetrack['total_hours']:
+        daily_hours = 0.0
+        if self.current_timetrack and self.current_timetrack.get('total_hours'):
             daily_hours = float(self.current_timetrack['total_hours'])
         elif self.is_checked_in and self.current_timetrack:
             delta = datetime.now() - self.current_timetrack['check_in']
             daily_hours = delta.total_seconds() / 3600
             
-        # Cards de estatísticas
         status_card = StatsCard("Status", status_text, ft.Icons.SCHEDULE, status_color)
         hours_card = StatsCard("Horas Hoje", f"{daily_hours:.2f}h", ft.Icons.TIMER, ft.Colors.BLUE)
         
-        # Card de controle de ponto
-        time_card = TimeCard(
+        self.time_card = TimeCard(
             self.is_checked_in,
             self.handle_checkin,
             self.handle_checkout,
-            self.current_timetrack['check_in'] if self.current_timetrack else None
+            self.handle_break_start,
+            self.handle_break_end,
+            self.current_timetrack['check_in'] if self.current_timetrack else None,
+            self.project_dropdown,
+            self.is_on_break,
+            self.current_break['start_time'] if self.current_break else None,
+            on_manual_entry=self.open_manual_entry_dialog
         )
         
-        # Histórico
         history_data = self.db.get_user_history(self.user['id'], 15)
         history_table = HistoryTable(history_data or [])
         
-        # Gráfico semanal
         weekly_data = self.db.get_weekly_report(self.user['id'])
         weekly_chart = WeeklyChart(weekly_data or [])
+
+        # Componentes de monitoramento de atividade
+        activity_components = []
+        if self.user.get('activity_tracking_consent'):
+            activity_card = ActivityCard(
+                self.current_activity_level if hasattr(self, 'activity_monitor') and self.activity_monitor else 0
+            )
+            activity_graph = ActivityGraph(
+                self.db.get_activity_history(self.current_timetrack['id']) if self.current_timetrack else []
+            )
+            activity_components = [
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                ft.Row([
+                    ft.Column([
+                        ft.Text("Nível de Atividade", size=20, weight=ft.FontWeight.BOLD),
+                        activity_card.build()
+                    ], expand=1),
+                    ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
+                    ft.Column([
+                        ft.Text("Histórico de Atividade", size=20, weight=ft.FontWeight.BOLD),
+                        activity_graph.build()
+                    ], expand=1)
+                ], expand=True, spacing=20)
+            ]
         
         return [
             ft.Text(f"Olá, {self.user['full_name']}!", size=24, weight=ft.FontWeight.BOLD),
             ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-            
-            # Cards superiores
-            ft.Row([
-                status_card.build(),
-                hours_card.build(),
-                time_card.build()
-            ], spacing=20),
-            
+            ft.Row([status_card.build(), hours_card.build(), self.time_card.build()], spacing=20),
             ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-            
-            # Conteúdo principal
             ft.Row([
                 ft.Column([
                     ft.Text("Histórico Recente", size=20, weight=ft.FontWeight.BOLD),
                     history_table.build()
                 ], expand=1),
-                
                 ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
-                
                 ft.Column([
                     ft.Text("Horas da Semana", size=20, weight=ft.FontWeight.BOLD),
                     weekly_chart.build()
                 ], expand=1)
-            ], expand=True, spacing=20)
+            ], expand=True, spacing=20),
+            *activity_components
         ]
         
     def build_admin_content(self):
-        """Constrói conteúdo para administrador"""
-        # Dados dos usuários
+        """Constrói o conteúdo da UI para um administrador."""
         users_data = self.db.get_all_users_status() or []
-        online_count = len([u for u in users_data if u['check_in'] and not u['check_out']])
+        online_count = sum(1 for u in users_data if u.get('check_in') and not u.get('check_out'))
         total_users = len(users_data)
         
-        # Cards de estatísticas
         users_card = StatsCard("Total Usuários", str(total_users), ft.Icons.GROUP, ft.Colors.BLUE)
         online_card = StatsCard("Online Agora", str(online_count), ft.Icons.CIRCLE, ft.Colors.GREEN)
         
-        # Tabela de usuários
         users_table = UsersTable(users_data)
         
-        # Relatório semanal geral
         weekly_data = self.db.get_weekly_report()
         weekly_chart = WeeklyChart(weekly_data or [], admin_view=True)
+
+        add_user_button = ft.ElevatedButton(
+            "Adicionar Colaborador",
+            icon=ft.Icons.ADD,
+            on_click=self.open_register_dialog,
+            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
+        )
+
+        projects_button = ft.ElevatedButton(
+            "Gerenciar Projetos",
+            icon=ft.Icons.FOLDER,
+            on_click=lambda _: self.show_project_screen(),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE)
+        )
+
+        pending_approvals = self.db.get_pending_approvals()
+        approvals_count = len(pending_approvals) if pending_approvals else 0
+        
+        approvals_button = ft.ElevatedButton(
+            f"Aprovações Pendentes ({approvals_count})",
+            icon=ft.Icons.PENDING_ACTIONS,
+            on_click=lambda e: self.show_pending_approvals(pending_approvals),
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.ORANGE if approvals_count > 0 else ft.Colors.GREY,
+                color=ft.Colors.WHITE
+            )
+        )
         
         return [
-            ft.Text("Painel Administrativo", size=24, weight=ft.FontWeight.BOLD),
-            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-            
-            # Cards superiores
             ft.Row([
-                users_card.build(),
-                online_card.build(),
-                ft.Container(expand=True)  # Espaçador
-            ], spacing=20),
-            
+                ft.Text("Painel Administrativo", size=24, weight=ft.FontWeight.BOLD),
+                ft.Container(expand=True),
+                projects_button,
+                ft.Container(width=10),  # Espaçamento
+                approvals_button,
+                ft.Container(width=10),  # Espaçamento
+                add_user_button
+            ]),
             ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-            
-            # Conteúdo principal
+            ft.Row([users_card.build(), online_card.build(), ft.Container(expand=True)], spacing=20),
+            ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             ft.Row([
                 ft.Column([
                     ft.Text("Status dos Colaboradores", size=20, weight=ft.FontWeight.BOLD),
                     users_table.build()
                 ], expand=1),
-                
                 ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
-                
                 ft.Column([
                     ft.Text("Relatório Semanal", size=20, weight=ft.FontWeight.BOLD),
                     weekly_chart.build()
@@ -160,27 +650,36 @@ class DashboardScreen:
             ], expand=True, spacing=20)
         ]
         
-    def build(self):
-        """Constrói interface principal"""
-        # Navbar
-        navbar = NavBar(
-            self.user,
-            self.on_logout,
-            self.toggle_theme,
-            self.dark_mode
-        )
+    def show_project_screen(self):
+        """Mostra a tela de gerenciamento de projetos"""
+        from ui_project_manager import ProjectManagerScreen
         
-        # Conteúdo baseado no tipo de usuário
+        self.show_projects = True
+        project_screen = ProjectManagerScreen(
+            self.db,
+            self.user,
+            lambda _: self.hide_project_screen()
+        )
+        self.page_content.controls = [project_screen.build(self.page)]
+        self.page_content.update()
+        
+    def hide_project_screen(self):
+        """Volta para a tela principal"""
+        self.show_projects = False
+        self.refresh_dashboard()
+        
+    def build(self, page: ft.Page):
+        """Constrói a interface principal do dashboard."""
+        self.page = page
+
+        navbar = NavBar(self.user, self.on_logout, self.toggle_theme, self.dark_mode)
+        
         if self.auth.is_admin(self.user):
             content = self.build_admin_content()
         else:
             content = self.build_colaborador_content()
             
-        self.page_content = ft.Column(
-            content,
-            scroll=ft.ScrollMode.AUTO,
-            spacing=20
-        )
+        self.page_content.controls = content
         
         return ft.Column([
             navbar.build(),
