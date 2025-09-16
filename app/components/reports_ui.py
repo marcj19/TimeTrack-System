@@ -2,6 +2,9 @@
 
 import flet as ft
 from datetime import datetime, timedelta
+import pandas as pd
+import tempfile
+import os
 from reports import ReportGenerator
 
 class ReportsScreen:
@@ -14,31 +17,37 @@ class ReportsScreen:
         today = datetime.now().date()
         start_default = today - timedelta(days=30)
         
-        # Com o Flet atualizado, o on_change aponta para a função que lida com o evento
+        self.file_picker = ft.FilePicker()
+        
+        # Define os valores iniciais das datas
+        self.start_date = start_default
+        self.end_date = today
+        
+        # Cria os pickers
         self.start_date_picker = ft.DatePicker(
-            value=start_default,
-            on_change=self._handle_filter_change
+            on_change=self._on_start_date_change
         )
         self.end_date_picker = ft.DatePicker(
-            value=today,
-            on_change=self._handle_filter_change
+            on_change=self._on_end_date_change
         )
-
-        # Usamos o método .pick_date() que existe nas versões recentes do Flet
+        
+        # Inicializa os campos de texto
         self.start_date_field = ft.TextField(
             label="Data Inicial",
             value=start_default.strftime('%d/%m/%Y'),
             read_only=True,
-            on_focus=lambda _: self.start_date_picker.pick_date(),
             width=150
         )
         self.end_date_field = ft.TextField(
             label="Data Final",
             value=today.strftime('%d/%m/%Y'),
             read_only=True,
-            on_focus=lambda _: self.end_date_picker.pick_date(),
             width=150
         )
+        
+        # Define os valores iniciais dos date pickers
+        self.start_date = start_default
+        self.end_date = today
         
         self.project_dropdown = None
         if self.user.get('role') == 'admin':
@@ -59,15 +68,21 @@ class ReportsScreen:
         self.content = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
 
     def _handle_filter_change(self, e=None):
-        if self.start_date_picker.value:
-            self.start_date_field.value = self.start_date_picker.value.strftime('%d/%m/%Y')
-        if self.end_date_picker.value:
-            self.end_date_field.value = self.end_date_picker.value.strftime('%d/%m/%Y')
-        
-        self.start_date_field.update()
-        self.end_date_field.update()
-        
         self._load_reports_data()
+
+    def _on_start_date_change(self, e):
+        if hasattr(e, 'control') and e.control and hasattr(e.control, 'value'):
+            self.start_date = e.control.value
+            self.start_date_field.value = self.start_date.strftime('%d/%m/%Y')
+            self.start_date_field.update()
+            self._load_reports_data()
+
+    def _on_end_date_change(self, e):
+        if hasattr(e, 'control') and e.control and hasattr(e.control, 'value'):
+            self.end_date = e.control.value
+            self.end_date_field.value = self.end_date.strftime('%d/%m/%Y')
+            self.end_date_field.update()
+            self._load_reports_data()
 
     def _load_reports_data(self):
         self.content.controls = [ft.Row([ft.ProgressRing()], alignment=ft.MainAxisAlignment.CENTER)]
@@ -77,13 +92,11 @@ class ReportsScreen:
         user_id = None if self.user.get('role') == 'admin' else self.user['id']
         project_id = None if not self.project_dropdown or self.project_dropdown.value == "todos" else int(self.project_dropdown.value)
         
-        start_date = self.start_date_picker.value
-        end_date = self.end_date_picker.value
-
         productivity_data = self.report_generator.generate_productivity_report(
             user_id=user_id,
-            start_date=start_date,
-            end_date=end_date
+            project_id=project_id,
+            start_date=self.start_date,
+            end_date=self.end_date
         )
         
         self.content.controls = []
@@ -95,7 +108,7 @@ class ReportsScreen:
             completed_tasks = sum(int(d.get('completed_tasks', 0) or 0) for d in productivity_data)
 
             metrics_row = ft.Row([
-                self.create_metric_card("Horas Totais", f"{total_hours:.1f}h", ft.iIconscons.TIMER, ft.colors.BLUE),
+                self.create_metric_card("Horas Totais", f"{total_hours:.1f}h", ft.Icons.TIMER, ft.colors.BLUE),
                 self.create_metric_card("Atividade Média", f"{avg_activity:.1f}%", ft.Icons.TRENDING_UP, ft.colors.GREEN),
                 self.create_metric_card("Tarefas Concluídas", str(completed_tasks), ft.Icons.TASK_ALT, ft.colors.ORANGE)
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20, wrap=True)
@@ -144,10 +157,78 @@ class ReportsScreen:
             )
         )
         
+    def _handle_export(self, e=None):
+        user_id = None if self.user.get('role') == 'admin' else self.user['id']
+        project_id = None if not self.project_dropdown or self.project_dropdown.value == "todos" else int(self.project_dropdown.value)
+        
+        # Get the data
+        data = self.report_generator.generate_productivity_report(
+            user_id=user_id,
+            project_id=project_id,
+            start_date=self.start_date,
+            end_date=self.end_date
+        )
+        
+        if not data:
+            self.content.page.show_snack_bar(
+                ft.SnackBar(content=ft.Text("Não há dados para exportar no período selecionado."))
+            )
+            return
+            
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.csv') as tmp:
+            df.to_csv(tmp.name, index=False, encoding='utf-8-sig')
+            
+            # Configure the file picker
+            self.file_picker.save_file(
+                dialog_title="Salvar Relatório",
+                file_name=f"relatorio_{self.start_date.strftime('%Y%m%d')}_{self.end_date.strftime('%Y%m%d')}.csv",
+                initial_directory=os.path.expanduser("~\\Documents"),
+                allowed_extensions=["csv"],
+                on_result=lambda e: self._save_exported_file(e, tmp.name) if e.path else None
+            )
+            
+    def _save_exported_file(self, e, temp_file_path):
+        """Save the exported file to the user's chosen location."""
+        try:
+            # Read the temporary file
+            with open(temp_file_path, 'rb') as src:
+                data = src.read()
+                
+            # Write to the destination
+            with open(e.path, 'wb') as dst:
+                dst.write(data)
+                
+            self.content.page.show_snack_bar(
+                ft.SnackBar(content=ft.Text("Relatório exportado com sucesso!"))
+            )
+        except Exception as error:
+            self.content.page.show_snack_bar(
+                ft.SnackBar(content=ft.Text(f"Erro ao exportar relatório: {str(error)}"))
+            )
+        finally:
+            # Clean up the temporary file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+        
     def build(self, page: ft.Page):
         """Constrói a tela de relatórios."""
-        page.overlay.extend([self.start_date_picker, self.end_date_picker])
-
+        # Adiciona os controles necessários ao overlay da página
+        page.overlay.extend([
+            self.start_date_picker,
+            self.end_date_picker,
+            self.file_picker
+        ])
+        
+        # Adiciona os manipuladores de eventos para os campos de data
+        self.start_date_field.on_click = lambda _: page.open(self.start_date_picker)
+        self.end_date_field.on_click = lambda _: page.open(self.end_date_picker)
+        
         filters_row = ft.Row([
             self.start_date_field,
             self.end_date_field
@@ -161,6 +242,11 @@ class ReportsScreen:
                 ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="Voltar", on_click=self.on_back),
                 ft.Text("Relatórios e Análises", size=24, weight=ft.FontWeight.BOLD),
                 ft.Container(expand=True),
+                ft.IconButton(
+                    icon=ft.Icons.DOWNLOAD,
+                    tooltip="Exportar Relatório",
+                    on_click=self._handle_export
+                ),
                 filters_row
             ]),
             padding=ft.padding.only(bottom=20)

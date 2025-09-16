@@ -7,12 +7,18 @@ class ReportGenerator:
     def __init__(self, db):
         self.db = db
 
-    def generate_productivity_report(self, user_id=None, start_date=None, end_date=None):
+    def generate_productivity_report(self, user_id=None, project_id=None, start_date=None, end_date=None):
         """Gera relatório detalhado de produtividade."""
         if not start_date:
             start_date = datetime.now() - timedelta(days=30)
         if not end_date:
             end_date = datetime.now()
+
+        # Converte datetime para date se necessário
+        if hasattr(start_date, 'date'):
+            start_date = start_date.date()
+        if hasattr(end_date, 'date'):
+            end_date = end_date.date()
 
         query = """
             SELECT 
@@ -32,11 +38,15 @@ class ReportGenerator:
             LEFT JOIN tasks tsk ON t.task_id = tsk.id AND tsk.status = 'completed'
             WHERE t.date BETWEEN %s AND %s
         """
-        params = [start_date.date(), end_date.date()]
+        params = [start_date, end_date]
 
         if user_id:
             query += " AND t.user_id = %s"
             params.append(user_id)
+            
+        if project_id:
+            query += " AND t.project_id = %s"
+            params.append(project_id)
 
         query += " GROUP BY t.date, u.full_name, p.name ORDER BY t.date"
 
@@ -73,6 +83,12 @@ class ReportGenerator:
         if not end_date:
             end_date = datetime.now()
 
+        # Converte datetime para date se necessário
+        if hasattr(start_date, 'date'):
+            start_date = start_date.date()
+        if hasattr(end_date, 'date'):
+            end_date = end_date.date()
+
         query = """
             SELECT 
                 p.name as project_name,
@@ -92,7 +108,7 @@ class ReportGenerator:
             GROUP BY p.id, p.name, p.description
         """
         
-        project_data = self.db.execute_query(query, (project_id, start_date.date(), end_date.date()))
+        project_data = self.db.execute_query(query, (project_id, start_date, end_date))
         
         # Obtém detalhes de custos e faturamento
         if project_data and len(project_data) > 0:
@@ -109,6 +125,12 @@ class ReportGenerator:
             start_date = datetime.now() - timedelta(days=30)
         if not end_date:
             end_date = datetime.now()
+
+        # Converte datetime para date se necessário
+        if hasattr(start_date, 'date'):
+            start_date = start_date.date()
+        if hasattr(end_date, 'date'):
+            end_date = end_date.date()
 
         query = """
             SELECT 
@@ -128,7 +150,7 @@ class ReportGenerator:
             ORDER BY u.full_name
         """
         
-        return self.db.execute_query(query, (start_date.date(), end_date.date()))
+        return self.db.execute_query(query, (start_date, end_date))
 
     def plot_activity_heatmap(self, data):
         """Cria um heatmap de atividade usando Plotly."""
