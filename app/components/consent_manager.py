@@ -36,12 +36,12 @@ class ConsentManager:
                             "seu nível de atividade. Nenhum dado específico sobre teclas ou "
                             "cliques é registrado.",
                             size=14,
-                            color=ft.colors.GREY_700
+                            color=ft.Colors.GREY_700
                         ),
                         self.activity_consent_switch
                     ]),
                     padding=10,
-                    border=ft.border.all(1, ft.colors.GREY_400),
+                    border=ft.border.all(1, ft.Colors.GREY_400),
                     border_radius=10,
                     margin=ft.margin.only(bottom=10)
                 ),
@@ -52,12 +52,12 @@ class ConsentManager:
                             "Quando ativado, registra sua localização apenas no momento do "
                             "check-in e check-out. A localização não é monitorada continuamente.",
                             size=14,
-                            color=ft.colors.GREY_700
+                            color=ft.Colors.GREY_700
                         ),
                         self.location_consent_switch
                     ]),
                     padding=10,
-                    border=ft.border.all(1, ft.colors.GREY_400),
+                    border=ft.border.all(1, ft.Colors.GREY_400),
                     border_radius=10
                 )
             ], scroll=ft.ScrollMode.AUTO),

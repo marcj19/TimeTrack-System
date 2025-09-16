@@ -107,7 +107,7 @@ class WeeklyChart:
                     alignment=ft.MainAxisAlignment.SPACE_AROUND,
                     spacing=10
                 ),
-                ft.Divider(height=10, color=ft.colors.TRANSPARENT),
+                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                 ft.Row([
                     ft.Row([
                         ft.Container(bgcolor=ft.Colors.BLUE, width=20, height=10),

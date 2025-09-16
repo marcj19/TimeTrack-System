@@ -9,9 +9,9 @@ class TaskCard:
         
         # Define cores baseadas no status
         self.status_colors = {
-            'pending': ft.colors.ORANGE,
-            'in_progress': ft.colors.BLUE,
-            'completed': ft.colors.GREEN
+            'pending': ft.Colors.ORANGE,
+            'in_progress': ft.Colors.BLUE,
+            'completed': ft.Colors.GREEN
         }
         
     def build(self):
@@ -44,19 +44,19 @@ class TaskCard:
                     ft.Text(
                         self.task['description'] or "Sem descrição",
                         size=14,
-                        color=ft.colors.GREY
+                        color=ft.Colors.GREY
                     ),
                     ft.Divider(),
                     ft.Row([
                         ft.Text(
                             f"⏱️ {hours_spent:.1f}h",
                             size=12,
-                            color=ft.colors.BLUE
+                            color=ft.Colors.BLUE
                         ),
                         ft.Text(
                             f"👥 {users_count} usuário(s)",
                             size=12,
-                            color=ft.colors.GREY
+                            color=ft.Colors.GREY
                         )
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                 ]),
@@ -84,7 +84,7 @@ class ProjectManager:
             min_lines=3,
             max_lines=5
         )
-        self.task_error_text = ft.Text("", color=ft.colors.RED, size=12)
+        self.task_error_text = ft.Text("", color=ft.Colors.RED, size=12)
         
         self.new_task_dialog = ft.AlertDialog(
             modal=True,
@@ -161,7 +161,7 @@ class ProjectManager:
             ft.Text(
                 task['description'] or "Sem descrição",
                 size=14,
-                color=ft.colors.GREY
+                color=ft.Colors.GREY
             ),
             ft.Divider(),
             ft.Text("Registros de Tempo:", size=16, weight=ft.FontWeight.BOLD)
@@ -185,7 +185,7 @@ class ProjectManager:
             content.append(
                 ft.Text(
                     "Nenhum registro de tempo para esta tarefa",
-                    color=ft.colors.GREY
+                    color=ft.Colors.GREY
                 )
             )
             
@@ -222,7 +222,7 @@ class ProjectManager:
         # Botão de nova tarefa
         new_task_btn = ft.ElevatedButton(
             "Nova Tarefa",
-            icon=ft.icons.ADD,
+            icon=ft.Icons.ADD,
             on_click=self.show_task_dialog,
             disabled=True  # Inicia desabilitado
         )
@@ -242,8 +242,8 @@ class ProjectManager:
                 self.tasks_view.controls = [
                     ft.Container(
                         content=ft.Column([
-                            ft.Icon(ft.icons.TASK, size=40, color=ft.colors.GREY_400),
-                            ft.Text("Nenhuma tarefa encontrada", color=ft.colors.GREY_400)
+                            ft.Icon(ft.Icons.TASK, size=40, color=ft.Colors.GREY_400),
+                            ft.Text("Nenhuma tarefa encontrada", color=ft.Colors.GREY_400)
                         ], alignment=ft.MainAxisAlignment.CENTER),
                         alignment=ft.alignment.center
                     )

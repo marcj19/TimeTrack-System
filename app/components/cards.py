@@ -58,14 +58,14 @@ class TimeCard:
         checkin_btn = ft.ElevatedButton(
             "▶️ Check-in",
             on_click=self.on_checkin,
-            style=ft.ButtonStyle(bgcolor=ft.colors.GREEN, color=ft.colors.WHITE),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE),
             disabled=self.is_checked_in
         )
         
         checkout_btn = ft.ElevatedButton(
             "⏹️ Check-out",
             on_click=self.on_checkout,
-            style=ft.ButtonStyle(bgcolor=ft.colors.RED, color=ft.colors.WHITE),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.RED, color=ft.Colors.WHITE),
             disabled=not self.is_checked_in or self.is_on_break
         )
         
@@ -73,8 +73,8 @@ class TimeCard:
             "⏸️ Iniciar Pausa" if not self.is_on_break else "▶️ Retornar da Pausa",
             on_click=self.on_break_start if not self.is_on_break else self.on_break_end,
             style=ft.ButtonStyle(
-                bgcolor=ft.colors.ORANGE if not self.is_on_break else ft.colors.GREEN,
-                color=ft.colors.WHITE
+                bgcolor=ft.Colors.ORANGE if not self.is_on_break else ft.Colors.GREEN,
+                color=ft.Colors.WHITE
             ),
             disabled=not self.is_checked_in
         )
@@ -96,7 +96,7 @@ class TimeCard:
         manual_entry_btn = ft.OutlinedButton(
             "📝 Registro Manual",
             on_click=self.on_manual_entry,
-            style=ft.ButtonStyle(color=ft.colors.BLUE),
+            style=ft.ButtonStyle(color=ft.Colors.BLUE),
         ) if self.on_manual_entry else None
 
         return ft.Card(
@@ -129,7 +129,7 @@ class TimeCard:
                                 ft.Text(
                                     break_time_display,
                                     weight=ft.FontWeight.BOLD,
-                                    color=ft.colors.ORANGE if self.is_on_break else None
+                                    color=ft.Colors.ORANGE if self.is_on_break else None
                                 )
                             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
                         ],

@@ -12,14 +12,14 @@ class LocationCard:
         """Constrói o card de localização"""
         status_icon = ft.Icon(
             ft.Icons.LOCATION_ON if self.lat and self.lon else ft.Icons.LOCATION_OFF,
-            color=ft.colors.GREEN if self.lat and self.lon else ft.colors.GREY
+            color=ft.Colors.GREEN if self.lat and self.lon else ft.Colors.GREY
         )
         
         status_row = ft.Row([
             status_icon,
             ft.Text(
                 "Localização Disponível" if self.lat and self.lon else "Localização Indisponível",
-                color=ft.colors.GREEN if self.lat and self.lon else ft.colors.GREY
+                color=ft.Colors.GREEN if self.lat and self.lon else ft.Colors.GREY
             )
         ])
         
@@ -39,7 +39,7 @@ class LocationCard:
                 ft.Text(
                     f"Última atualização: {self.last_update.strftime('%H:%M:%S') if self.last_update else 'N/A'}",
                     size=12,
-                    color=ft.colors.GREY_600
+                    color=ft.Colors.GREY_600
                 )
             ])
             
@@ -99,9 +99,9 @@ class LocationHistoryTable:
         return ft.DataTable(
             columns=columns,
             rows=rows,
-            border=ft.border.all(1, ft.colors.GREY_400),
+            border=ft.border.all(1, ft.Colors.GREY_400),
             border_radius=10,
-            vertical_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
-            horizontal_lines=ft.border.BorderSide(1, ft.colors.GREY_400),
+            vertical_lines=ft.border.BorderSide(1, ft.Colors.GREY_400),
+            horizontal_lines=ft.border.BorderSide(1, ft.Colors.GREY_400),
             column_spacing=50
         )

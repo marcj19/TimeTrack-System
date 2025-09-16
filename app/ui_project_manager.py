@@ -12,9 +12,9 @@ class ProjectManagerScreen:
         """Constrói a interface de gerenciamento de projetos"""
         header = ft.Row([
             ft.IconButton(
-                icon=ft.icons.ARROW_BACK,
+                icon=ft.Icons.ARROW_BACK,
                 on_click=self.on_back,
-                icon_color=ft.colors.BLUE
+                icon_color=ft.Colors.BLUE
             ),
             ft.Text("Gerenciamento de Projetos", size=24, weight=ft.FontWeight.BOLD),
         ])

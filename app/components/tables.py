@@ -42,12 +42,12 @@ class HistoryTable:
                     ft.DataColumn(ft.Text("Projeto", weight=ft.FontWeight.BOLD))
                 ],
                 rows=rows,
-                border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+                border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
                 border_radius=10,
                 show_checkbox_column=False
             ),
             height=400,
-            border=ft.border.all(1, ft.colors.OUTLINE_VARIANT),
+            border=ft.border.all(1, ft.Colors.OUTLINE_VARIANT),
             border_radius=10,
             padding=10
         )
@@ -72,20 +72,20 @@ class UsersTable:
             if user['check_in'] and not user['check_out']:
                 if user.get('is_on_break'):
                     status = "Em Pausa"
-                    status_color = ft.colors.ORANGE
+                    status_color = ft.Colors.ORANGE
                 else:
                     status = "Online"
-                    status_color = ft.colors.GREEN
+                    status_color = ft.Colors.GREEN
                 entry_time = user['check_in'].strftime('%H:%M')
                 project = user.get('project_name', '--')
             elif user['check_in'] and user['check_out']:
                 status = "Finalizado"
-                status_color = ft.colors.BLUE
+                status_color = ft.Colors.BLUE
                 entry_time = user['check_in'].strftime('%H:%M')
                 project = "--"
             else:
                 status = "Offline"
-                status_color = ft.colors.GREY
+                status_color = ft.Colors.GREY
                 entry_time = "--:--"
                 project = "--"
                 
@@ -95,14 +95,14 @@ class UsersTable:
             rows.append(ft.DataRow([
                 ft.DataCell(ft.Text(name, size=12)),
                 ft.DataCell(ft.Container(
-                    content=ft.Text(status, size=11, color=ft.colors.WHITE),
+                    content=ft.Text(status, size=11, color=ft.Colors.WHITE),
                     bgcolor=status_color,
                     padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=20
                 )),
                 ft.DataCell(ft.Text(entry_time, size=12)),
                 ft.DataCell(ft.Text(hours, size=12)),
-                ft.DataCell(ft.Text(break_hours, size=12, color=ft.colors.ORANGE)),
+                ft.DataCell(ft.Text(break_hours, size=12, color=ft.Colors.ORANGE)),
                 ft.DataCell(ft.Text(project, size=12))
             ]))
             

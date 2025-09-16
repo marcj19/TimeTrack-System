@@ -1,3 +1,5 @@
+# Arquivo: app/components/reports_ui.py (VERSÃO PARA FLET ATUALIZADO)
+
 import flet as ft
 from datetime import datetime, timedelta
 from reports import ReportGenerator
@@ -9,20 +11,35 @@ class ReportsScreen:
         self.on_back = on_back
         self.report_generator = ReportGenerator(db)
         
-        # Filtros de data
-        today = datetime.now()
-        self.start_date = ft.DatePicker(
-            label="Data Inicial",
-            value=today - timedelta(days=30),
-            on_change=self.update_reports
+        today = datetime.now().date()
+        start_default = today - timedelta(days=30)
+        
+        # Com o Flet atualizado, o on_change aponta para a função que lida com o evento
+        self.start_date_picker = ft.DatePicker(
+            value=start_default,
+            on_change=self._handle_filter_change
         )
-        self.end_date = ft.DatePicker(
-            label="Data Final",
+        self.end_date_picker = ft.DatePicker(
             value=today,
-            on_change=self.update_reports
+            on_change=self._handle_filter_change
+        )
+
+        # Usamos o método .pick_date() que existe nas versões recentes do Flet
+        self.start_date_field = ft.TextField(
+            label="Data Inicial",
+            value=start_default.strftime('%d/%m/%Y'),
+            read_only=True,
+            on_focus=lambda _: self.start_date_picker.pick_date(),
+            width=150
+        )
+        self.end_date_field = ft.TextField(
+            label="Data Final",
+            value=today.strftime('%d/%m/%Y'),
+            read_only=True,
+            on_focus=lambda _: self.end_date_picker.pick_date(),
+            width=150
         )
         
-        # Seletor de projeto para administradores
         self.project_dropdown = None
         if self.user.get('role') == 'admin':
             projects = self.db.get_active_projects()
@@ -35,98 +52,55 @@ class ReportsScreen:
                     for p in (projects or [])
                 ],
                 value="todos",
-                on_change=self.update_reports
+                on_change=self._handle_filter_change,
+                width=250
             )
         
-        # Container para gráficos e relatórios
-        self.content = ft.Column(scroll=ft.ScrollMode.AUTO)
+        self.content = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+
+    def _handle_filter_change(self, e=None):
+        if self.start_date_picker.value:
+            self.start_date_field.value = self.start_date_picker.value.strftime('%d/%m/%Y')
+        if self.end_date_picker.value:
+            self.end_date_field.value = self.end_date_picker.value.strftime('%d/%m/%Y')
         
-    def create_metric_card(self, title, value, icon, color):
-        """Cria um card de métrica."""
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Icon(icon, size=30, color=color),
-                    ft.Text(title, size=16, color=ft.colors.GREY_800),
-                    ft.Text(value, size=24, weight=ft.FontWeight.BOLD)
-                ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
-                padding=20
-            ),
-            width=200
-        )
+        self.start_date_field.update()
+        self.end_date_field.update()
         
-    def create_chart_card(self, title, chart_html):
-        """Cria um card com gráfico."""
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Text(title, size=16, weight=ft.FontWeight.BOLD),
-                    ft.Html(content=chart_html, expand=True)
-                ], spacing=10),
-                padding=20
-            ),
-            expand=True
-        )
-        
-    def create_project_summary_card(self, summary_data):
-        """Cria um card de resumo do projeto."""
-        if not summary_data:
-            return None
-            
-        metrics = []
-        for metric in summary_data['metrics']:
-            metrics.append(
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text(metric['label'], size=12, color=ft.colors.GREY_700),
-                        ft.Text(metric['value'], size=16, weight=ft.FontWeight.BOLD)
-                    ], spacing=5),
-                    padding=10
-                )
-            )
-        
-        return ft.Card(
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Text(summary_data['title'], size=20, weight=ft.FontWeight.BOLD),
-                    ft.Text(summary_data['description'], size=14, color=ft.colors.GREY_700),
-                    ft.Divider(),
-                    ft.Row(metrics, wrap=True)
-                ], spacing=10),
-                padding=20
-            )
-        )
-        
-    def update_reports(self, e=None):
-        """Atualiza todos os relatórios com base nos filtros."""
-        self.content.controls = []
-        
-        # Obtém dados filtrados
+        self._load_reports_data()
+
+    def _load_reports_data(self):
+        self.content.controls = [ft.Row([ft.ProgressRing()], alignment=ft.MainAxisAlignment.CENTER)]
+        if self.content.page:
+             self.content.update()
+
         user_id = None if self.user.get('role') == 'admin' else self.user['id']
         project_id = None if not self.project_dropdown or self.project_dropdown.value == "todos" else int(self.project_dropdown.value)
         
-        # Gera relatórios
+        start_date = self.start_date_picker.value
+        end_date = self.end_date_picker.value
+
         productivity_data = self.report_generator.generate_productivity_report(
             user_id=user_id,
-            start_date=self.start_date.value,
-            end_date=self.end_date.value
+            start_date=start_date,
+            end_date=end_date
         )
         
+        self.content.controls = []
+        
         if productivity_data:
-            total_hours = sum(float(d['total_hours'] or 0) for d in productivity_data)
-            avg_activity = sum(float(d['avg_activity'] or 0) for d in productivity_data) / len(productivity_data)
-            completed_tasks = sum(int(d['completed_tasks'] or 0) for d in productivity_data)
-            
-            # Métricas principais
+            total_hours = sum(float(d.get('total_hours', 0) or 0) for d in productivity_data)
+            valid_activity = [d for d in productivity_data if d.get('avg_activity') is not None]
+            avg_activity = sum(float(d.get('avg_activity', 0) or 0) for d in valid_activity) / len(valid_activity) if valid_activity else 0
+            completed_tasks = sum(int(d.get('completed_tasks', 0) or 0) for d in productivity_data)
+
             metrics_row = ft.Row([
-                self.create_metric_card("Horas Totais", f"{total_hours:.1f}h", ft.icons.TIMER, ft.colors.BLUE),
-                self.create_metric_card("Atividade Média", f"{avg_activity:.1f}%", ft.icons.TRENDING_UP, ft.colors.GREEN),
-                self.create_metric_card("Tarefas Concluídas", str(completed_tasks), ft.icons.TASK_ALT, ft.colors.ORANGE)
-            ], alignment=ft.MainAxisAlignment.CENTER)
-            
+                self.create_metric_card("Horas Totais", f"{total_hours:.1f}h", ft.iIconscons.TIMER, ft.colors.BLUE),
+                self.create_metric_card("Atividade Média", f"{avg_activity:.1f}%", ft.Icons.TRENDING_UP, ft.colors.GREEN),
+                self.create_metric_card("Tarefas Concluídas", str(completed_tasks), ft.Icons.TASK_ALT, ft.colors.ORANGE)
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20, wrap=True)
             self.content.controls.append(metrics_row)
             
-            # Gráficos de produtividade
             charts = self.report_generator.plot_productivity_trends(productivity_data)
             if charts:
                 self.content.controls.extend([
@@ -135,62 +109,56 @@ class ReportsScreen:
                     ft.Divider(height=20),
                     self.create_chart_card("Nível de Atividade", charts['activity'])
                 ])
-                
-            # Heatmap de atividade para usuário específico
-            if user_id:
-                activity_data = self.report_generator.generate_activity_heatmap(
-                    user_id,
-                    self.start_date.value,
-                    self.end_date.value
-                )
-                if activity_data:
-                    heatmap_html = self.report_generator.plot_activity_heatmap(activity_data)
-                    if heatmap_html:
-                        self.content.controls.extend([
-                            ft.Divider(height=20),
-                            self.create_chart_card("Padrão de Atividade", heatmap_html)
-                        ])
-                        
-            # Resumo do projeto se selecionado
-            if project_id:
-                project_data = self.report_generator.generate_project_summary(
-                    project_id,
-                    self.start_date.value,
-                    self.end_date.value
-                )
-                if project_data:
-                    summary_card = self.create_project_summary_card(
-                        self.report_generator.format_summary_card(project_data)
-                    )
-                    progress_chart = self.report_generator.plot_project_progress(project_data)
-                    
-                    self.content.controls.extend([
-                        ft.Divider(height=20),
-                        summary_card,
-                        ft.Divider(height=20),
-                        self.create_chart_card("Progresso do Projeto", progress_chart)
-                    ])
-                    
-        self.content.update()
+
+        else:
+            self.content.controls.append(
+                ft.Row([ft.Text("Nenhum dado encontrado para os filtros selecionados.", size=16)], alignment=ft.MainAxisAlignment.CENTER)
+            )
+            
+        if self.content.page:
+            self.content.update()
         
-    def build(self):
+    def create_metric_card(self, title, value, icon, color):
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Icon(icon, size=30, color=color),
+                    ft.Text(title, size=16, color=ft.colors.GREY_800),
+                    ft.Text(value, size=24, weight=ft.FontWeight.BOLD)
+                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                padding=20,
+                alignment=ft.alignment.center
+            ),
+            width=220,
+            height=180
+        )
+        
+    def create_chart_card(self, title, chart_html):
+        return ft.Card(
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD),
+                    ft.Container(content=ft.Html(data=chart_html), height=400)
+                ], spacing=10),
+                padding=20
+            )
+        )
+        
+    def build(self, page: ft.Page):
         """Constrói a tela de relatórios."""
-        # Barra superior com filtros
+        page.overlay.extend([self.start_date_picker, self.end_date_picker])
+
         filters_row = ft.Row([
-            self.start_date,
-            self.end_date
-        ], alignment=ft.MainAxisAlignment.START, spacing=20)
+            self.start_date_field,
+            self.end_date_field
+        ], alignment=ft.MainAxisAlignment.START, spacing=20, wrap=True)
         
         if self.project_dropdown:
             filters_row.controls.append(self.project_dropdown)
             
         header = ft.Container(
             content=ft.Row([
-                ft.IconButton(
-                    icon=ft.icons.ARROW_BACK,
-                    tooltip="Voltar",
-                    on_click=self.on_back
-                ),
+                ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="Voltar", on_click=self.on_back),
                 ft.Text("Relatórios e Análises", size=24, weight=ft.FontWeight.BOLD),
                 ft.Container(expand=True),
                 filters_row
@@ -198,10 +166,9 @@ class ReportsScreen:
             padding=ft.padding.only(bottom=20)
         )
         
-        # Atualiza relatórios iniciais
-        self.update_reports()
+        self._load_reports_data()
         
         return ft.Column([
             header,
             self.content
-        ], expand=True, scroll=ft.ScrollMode.AUTO)
+        ], expand=True)

@@ -74,7 +74,7 @@ class ActivityCard:
         activity_indicator = ft.ProgressBar(
             value=self.current_level / 100,
             color=self._get_level_color(self.current_level),
-            bgcolor=ft.colors.GREY_300,
+            bgcolor=ft.Colors.GREY_300,
             height=15,
         )
         
@@ -99,7 +99,7 @@ class ActivityCard:
                         "O monitoramento de atividade ajuda a validar seu tempo de trabalho "
                         "através de eventos de mouse e teclado, respeitando sua privacidade.",
                         size=12,
-                        color=ft.colors.GREY,
+                        color=ft.Colors.GREY,
                         text_align=ft.TextAlign.CENTER
                     )
                 ], spacing=15),
@@ -110,8 +110,8 @@ class ActivityCard:
     def _get_level_color(self, level):
         """Retorna a cor baseada no nível de atividade"""
         if level < 30:
-            return ft.colors.RED
+            return ft.Colors.RED
         elif level < 70:
-            return ft.colors.ORANGE
+            return ft.Colors.ORANGE
         else:
-            return ft.colors.GREEN
+            return ft.Colors.GREEN

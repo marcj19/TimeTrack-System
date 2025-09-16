@@ -1,5 +1,5 @@
 import flet as ft
-from datetime import datetime
+from datetime import datetime, time
 from components.navbar import NavBar
 from components.cards import StatsCard, TimeCard
 from components.charts import WeeklyChart
@@ -59,20 +59,41 @@ class DashboardScreen:
             border_radius=10
         )
 
-        # Campo de data e hora para registro manual
-        self.manual_date = ft.DatePicker(
-            label="Data",
+        # --- INÍCIO DA CORREÇÃO: Campos de data e hora para registro manual ---
+        
+        # 1. Crie os seletores (pickers) como overlays, sem labels
+        self.manual_date_picker = ft.DatePicker(
             first_date=datetime(2024, 1, 1),
-            last_date=datetime(2025, 12, 31)
+            last_date=datetime(2025, 12, 31),
+            on_change=self.on_date_picked
         )
-        self.checkin_time = ft.TimePicker(
-            label="Horário de Entrada",
+        self.checkin_time_picker = ft.TimePicker(
+            on_change=self.on_checkin_time_picked,
             help_text="Selecione o horário de início"
         )
-        self.checkout_time = ft.TimePicker(
-            label="Horário de Saída",
+        self.checkout_time_picker = ft.TimePicker(
+            on_change=self.on_checkout_time_picked,
             help_text="Selecione o horário de fim"
         )
+
+        # 2. Crie os campos de texto (TextFields) que serão visíveis para o usuário
+        self.manual_date_field = ft.TextField(
+            label="Data do Registro", 
+            read_only=True, 
+            on_focus=lambda _: self.manual_date_picker.pick_date()
+        )
+        self.checkin_time_field = ft.TextField(
+            label="Horário de Entrada", 
+            read_only=True, 
+            on_focus=lambda _: self.checkin_time_picker.pick_time()
+        )
+        self.checkout_time_field = ft.TextField(
+            label="Horário de Saída", 
+            read_only=True, 
+            on_focus=lambda _: self.checkout_time_picker.pick_time()
+        )
+        # --- FIM DA CORREÇÃO ---
+        
         self.reason_field = ft.TextField(
             label="Motivo do Ajuste",
             multiline=True,
@@ -91,10 +112,11 @@ class DashboardScreen:
         self.manual_entry_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Registro Manual de Ponto"),
+            # 3. Use os TextFields no layout do diálogo
             content=ft.Column([
                 ft.Text("Selecione a data e horários do registro:", size=14),
-                self.manual_date,
-                ft.Row([self.checkin_time, self.checkout_time], spacing=10),
+                self.manual_date_field,
+                ft.Row([self.checkin_time_field, self.checkout_time_field], spacing=10),
                 self.manual_project_dropdown,
                 self.reason_field,
                 self.manual_error_text
@@ -152,6 +174,25 @@ class DashboardScreen:
         self.load_current_status()
         self.load_projects()
 
+    # --- Funções de callback para os seletores de data/hora ---
+    def on_date_picked(self, e):
+        """Atualiza o campo de texto da data quando uma data é escolhida."""
+        if self.manual_date_picker.value:
+            self.manual_date_field.value = self.manual_date_picker.value.strftime('%d/%m/%Y')
+            self.manual_date_field.update()
+
+    def on_checkin_time_picked(self, e):
+        """Atualiza o campo de texto da hora de entrada."""
+        if self.checkin_time_picker.value:
+            self.checkin_time_field.value = self.checkin_time_picker.value.strftime('%H:%M')
+            self.checkin_time_field.update()
+
+    def on_checkout_time_picked(self, e):
+        """Atualiza o campo de texto da hora de saída."""
+        if self.checkout_time_picker.value:
+            self.checkout_time_field.value = self.checkout_time_picker.value.strftime('%H:%M')
+            self.checkout_time_field.update()
+
     # --- Funções para o Cadastro de Usuário ---
     def open_register_dialog(self, e):
         """Abre a janela de diálogo para cadastrar um novo usuário."""
@@ -199,10 +240,14 @@ class DashboardScreen:
 
     def open_manual_entry_dialog(self, e):
         """Abre o diálogo de registro manual de ponto"""
-        # Reset fields
-        self.manual_date.value = None
-        self.checkin_time.value = None
-        self.checkout_time.value = None
+        # Limpa os valores dos seletores e dos campos de texto
+        self.manual_date_picker.value = None
+        self.checkin_time_picker.value = None
+        self.checkout_time_picker.value = None
+        
+        self.manual_date_field.value = ""
+        self.checkin_time_field.value = ""
+        self.checkout_time_field.value = ""
         self.reason_field.value = ""
         self.manual_error_text.value = ""
         self.manual_project_dropdown.value = None
@@ -221,12 +266,13 @@ class DashboardScreen:
         
     def handle_manual_entry(self, e):
         """Processa o registro manual de ponto"""
-        if not self.manual_date.value:
+        # 4. Valide usando os valores dos pickers, não dos campos
+        if not self.manual_date_picker.value:
             self.manual_error_text.value = "Selecione uma data."
             self.page.dialog.update()
             return
             
-        if not self.checkin_time.value or not self.checkout_time.value:
+        if not self.checkin_time_picker.value or not self.checkout_time_picker.value:
             self.manual_error_text.value = "Selecione os horários de entrada e saída."
             self.page.dialog.update()
             return
@@ -242,14 +288,15 @@ class DashboardScreen:
             return
 
         try:
-            # Criar objetos datetime completos
+            # Criar objetos datetime completos combinando os valores dos seletores
+            # O .value do DatePicker é um datetime e o do TimePicker é um time
             check_in = datetime.combine(
-                self.manual_date.value,
-                datetime.strptime(self.checkin_time.value, '%H:%M').time()
+                self.manual_date_picker.value.date(),
+                self.checkin_time_picker.value
             )
             check_out = datetime.combine(
-                self.manual_date.value,
-                datetime.strptime(self.checkout_time.value, '%H:%M').time()
+                self.manual_date_picker.value.date(),
+                self.checkout_time_picker.value
             )
             
             # Validar se check_out é depois de check_in
@@ -299,7 +346,7 @@ class DashboardScreen:
                         ft.Text(
                             f"Projeto: {entry['project_name']}",
                             size=14,
-                            color=ft.colors.BLUE
+                            color=ft.Colors.BLUE
                         ),
                         ft.Text(
                             f"Data: {entry['date'].strftime('%d/%m/%Y')}",
@@ -550,7 +597,7 @@ class DashboardScreen:
                         self.db.update_activity_level(timetrack_id, current_level)
                         # Atualiza o gráfico de atividade se estiver visível
                         self.refresh_dashboard()
-                    
+                
             # Atualiza a cada 5 minutos
             self.activity_update_timer = ft.Timer(update_activity, 300)
             self.activity_update_timer.start()
@@ -733,9 +780,9 @@ class DashboardScreen:
                 ft.Container(width=10),  # Espaçamento
                 ft.ElevatedButton(
                     "Relatórios",
-                    icon=ft.icons.ANALYTICS,
+                    icon=ft.Icons.ANALYTICS,
                     on_click=lambda _: self.show_reports_screen(),
-                    style=ft.ButtonStyle(bgcolor=ft.colors.INDIGO, color=ft.colors.WHITE)
+                    style=ft.ButtonStyle(bgcolor=ft.Colors.INDIGO, color=ft.Colors.WHITE)
                 ),
                 ft.Container(width=10),  # Espaçamento
                 add_user_button
@@ -782,7 +829,7 @@ class DashboardScreen:
             self.db,
             lambda _: self.hide_reports_screen()
         )
-        self.page_content.controls = [reports_screen.build()]
+        self.page_content.controls = [reports_screen.build(self.page)]
         self.page_content.update()
         
     def hide_reports_screen(self):
@@ -793,6 +840,14 @@ class DashboardScreen:
         """Constrói a interface principal do dashboard."""
         self.page = page
 
+        # 5. Adicione os seletores à camada de sobreposição (overlay) da página.
+        #    Isso é crucial para que eles possam ser exibidos.
+        page.overlay.extend([
+            self.manual_date_picker, 
+            self.checkin_time_picker, 
+            self.checkout_time_picker
+        ])
+        
         navbar = NavBar(self.user, self.db, self.on_logout, self.toggle_theme, self.dark_mode)
         
         if self.auth.is_admin(self.user):

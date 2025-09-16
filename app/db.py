@@ -152,10 +152,21 @@ class Database:
         )"""
         
         try:
+            # --- INÍCIO DA CORREÇÃO ---
+            # Executar a criação de todas as tabelas na ordem correta de dependência
+            
             cursor.execute(users_table)
             cursor.execute(projects_table)
-            cursor.execute(timetrack_table)
+            cursor.execute(tasks_table) # Depende de projects
+            cursor.execute(timetrack_table) # Depende de users, projects e tasks
+            cursor.execute(breaks_table) # Depende de timetrack
+            cursor.execute(location_logs_table) # Depende de timetrack
+            cursor.execute(activity_logs_table) # Depende de timetrack
+
+            # --- FIM DA CORREÇÃO ---
+            
             self.connection.commit()
+            print("Tabelas verificadas/criadas com sucesso.")
         except Error as e:
             print(f"Erro ao criar tabelas: {e}")
         finally:
@@ -284,8 +295,8 @@ class Database:
     def get_active_projects(self):
         query = """
             SELECT p.*, 
-                COUNT(t.id) as total_tasks,
-                SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
+                   COUNT(t.id) as total_tasks,
+                   SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
             FROM projects p
             LEFT JOIN tasks t ON p.id = t.project_id
             WHERE p.is_active = TRUE
@@ -298,8 +309,8 @@ class Database:
         """Retorna todas as tarefas de um projeto"""
         query = """
             SELECT t.*,
-                SUM(tt.total_hours) as total_hours_spent,
-                COUNT(DISTINCT tt.user_id) as total_users
+                   SUM(tt.total_hours) as total_hours_spent,
+                   COUNT(DISTINCT tt.user_id) as total_users
             FROM tasks t
             LEFT JOIN timetrack tt ON t.id = tt.task_id
             WHERE t.project_id = %s
@@ -366,7 +377,7 @@ class Database:
         """Retorna todas as tarefas atribuídas a um usuário"""
         query = """
             SELECT t.*, p.name as project_name,
-                SUM(tt.total_hours) as hours_spent
+                   SUM(tt.total_hours) as hours_spent
             FROM tasks t
             JOIN projects p ON t.project_id = p.id
             JOIN task_assignments ta ON t.id = ta.task_id
