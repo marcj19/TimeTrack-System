@@ -5,7 +5,10 @@ from components.cards import StatsCard, TimeCard
 from components.charts import WeeklyChart
 from components.tables import HistoryTable, UsersTable
 from components.activity_monitor_ui import ActivityCard, ActivityGraph
+from components.location_ui import LocationCard, LocationHistoryTable
+from components.reports_ui import ReportsScreen
 from activity_monitor import ActivityMonitor
+from location_service import GeolocationService
 
 class DashboardScreen:
     def __init__(self, user, db, auth, on_logout, toggle_theme, dark_mode):
@@ -26,11 +29,18 @@ class DashboardScreen:
         self.current_activity_level = 0
         self.activity_update_timer = None
         
+        # Serviço de geolocalização
+        self.location_service = GeolocationService()
+        self.current_location = None
+        self.location_details = None
+        
         # Inicia monitoramento se o usuário estiver em um timetrack ativo e tiver consentido
         self.load_current_status()
-        if (self.is_checked_in and self.current_timetrack and 
-            self.user.get('activity_tracking_consent')):
-            self.start_activity_monitoring(self.current_timetrack['id'])
+        if self.is_checked_in and self.current_timetrack:
+            if self.user.get('activity_tracking_consent'):
+                self.start_activity_monitoring(self.current_timetrack['id'])
+            if self.user.get('location_tracking_consent'):
+                self.update_location()
 
         # Dropdown para projetos e tarefas
         self.project_dropdown = ft.Dropdown(
@@ -415,13 +425,27 @@ class DashboardScreen:
             if task_id:
                 self.db.update_task_status(int(task_id), 'in_progress')
                 
+            # Obtém localização para check-in se consentido
+            location = None
+            if self.user.get('location_tracking_consent'):
+                location = self.location_service.get_current_location()
+                if not location:
+                    self.show_snackbar("Aviso: Não foi possível obter sua localização.")
+                
             result = self.db.check_in_user(self.user['id'], project_id)
             if result:
+                # Registra localização se disponível
+                if location:
+                    lat, lon = location
+                    self.current_location = location
+                    self.location_details = self.location_service.get_location_details(lat, lon)
+                    self.db.log_location(result, lat, lon, self.location_details)
+                    
                 self.show_snackbar("Check-in realizado com sucesso!")
                 self.load_current_status()
                 self.load_projects()
                 
-                # Inicia monitoramento de atividade se consentido
+                # Inicia monitoramentos conforme consentimento
                 if self.user.get('activity_tracking_consent'):
                     self.start_activity_monitoring(result)  # result é o timetrack_id
                     
@@ -433,6 +457,16 @@ class DashboardScreen:
             # Para o monitoramento de atividade se estiver ativo
             if hasattr(self, 'activity_monitor') and self.activity_monitor:
                 self.stop_activity_monitoring()
+                
+            # Obtém localização para check-out se consentido
+            if self.user.get('location_tracking_consent'):
+                location = self.location_service.get_current_location()
+                if location:
+                    lat, lon = location
+                    self.location_details = self.location_service.get_location_details(lat, lon)
+                    self.db.log_location(self.current_timetrack['id'], lat, lon, self.location_details)
+                else:
+                    self.show_snackbar("Aviso: Não foi possível obter sua localização.")
 
             result = self.db.check_out_user(self.current_timetrack['id'])
             if result:
@@ -450,6 +484,56 @@ class DashboardScreen:
             self.page_content.controls = self.build_colaborador_content()
         
         self.page_content.update()
+        
+    def update_location(self):
+        """Atualiza a localização atual e registra no banco de dados se necessário"""
+        if not self.user.get('location_tracking_consent'):
+            return False
+            
+        location = self.location_service.get_current_location()
+        if location:
+            lat, lon = location
+            self.current_location = location
+            self.location_details = self.location_service.get_location_details(lat, lon)
+            
+            if self.current_timetrack:
+                self.db.log_location(
+                    self.current_timetrack['id'],
+                    lat,
+                    lon,
+                    self.location_details
+                )
+            return True
+        return False
+        
+    def get_location_card(self):
+        """Retorna o componente de card de localização com dados atuais"""
+        if not self.user.get('location_tracking_consent'):
+            return None
+            
+        cached_location, last_update = self.location_service.get_cached_location()
+        if cached_location:
+            lat, lon = cached_location
+        else:
+            lat = lon = None
+            
+        return LocationCard(
+            lat=lat,
+            lon=lon,
+            details=self.location_details,
+            last_update=last_update
+        ).build()
+        
+    def get_location_history(self):
+        """Retorna o componente de histórico de localizações"""
+        if not self.user.get('location_tracking_consent'):
+            return None
+            
+        history_data = self.db.get_location_history(
+            self.user['id'],
+            start_date=datetime.now().replace(hour=0, minute=0, second=0)
+        )
+        return LocationHistoryTable(history_data).build()
         
     def start_activity_monitoring(self, timetrack_id):
         """Inicia o monitoramento de atividade do usuário."""
@@ -580,7 +664,22 @@ class DashboardScreen:
                     weekly_chart.build()
                 ], expand=1)
             ], expand=True, spacing=20),
-            *activity_components
+            *activity_components,
+            # Adiciona componentes de localização se consentido
+            *([] if not self.user.get('location_tracking_consent') else [
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                ft.Row([
+                    ft.Column([
+                        ft.Text("Localização Atual", size=20, weight=ft.FontWeight.BOLD),
+                        self.get_location_card() or ft.Text("Localização indisponível")
+                    ], expand=1),
+                    ft.VerticalDivider(width=20, color=ft.Colors.TRANSPARENT),
+                    ft.Column([
+                        ft.Text("Histórico de Localizações", size=20, weight=ft.FontWeight.BOLD),
+                        self.get_location_history() or ft.Text("Sem histórico de localizações hoje")
+                    ], expand=1)
+                ], expand=True, spacing=20)
+            ])
         ]
         
     def build_admin_content(self):
@@ -632,6 +731,13 @@ class DashboardScreen:
                 ft.Container(width=10),  # Espaçamento
                 approvals_button,
                 ft.Container(width=10),  # Espaçamento
+                ft.ElevatedButton(
+                    "Relatórios",
+                    icon=ft.icons.ANALYTICS,
+                    on_click=lambda _: self.show_reports_screen(),
+                    style=ft.ButtonStyle(bgcolor=ft.colors.INDIGO, color=ft.colors.WHITE)
+                ),
+                ft.Container(width=10),  # Espaçamento
                 add_user_button
             ]),
             ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
@@ -668,11 +774,26 @@ class DashboardScreen:
         self.show_projects = False
         self.refresh_dashboard()
         
+    def show_reports_screen(self):
+        """Mostra a tela de relatórios"""
+        self.show_projects = False  # Garante que a tela de projetos está fechada
+        reports_screen = ReportsScreen(
+            self.user,
+            self.db,
+            lambda _: self.hide_reports_screen()
+        )
+        self.page_content.controls = [reports_screen.build()]
+        self.page_content.update()
+        
+    def hide_reports_screen(self):
+        """Volta para a tela principal"""
+        self.refresh_dashboard()
+        
     def build(self, page: ft.Page):
         """Constrói a interface principal do dashboard."""
         self.page = page
 
-        navbar = NavBar(self.user, self.on_logout, self.toggle_theme, self.dark_mode)
+        navbar = NavBar(self.user, self.db, self.on_logout, self.toggle_theme, self.dark_mode)
         
         if self.auth.is_admin(self.user):
             content = self.build_admin_content()

@@ -126,6 +126,21 @@ class Database:
             FOREIGN KEY (timetrack_id) REFERENCES timetrack(id) ON DELETE CASCADE
         )"""
         
+        location_logs_table = """
+        CREATE TABLE IF NOT EXISTS location_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            timetrack_id INT NOT NULL,
+            timestamp DATETIME NOT NULL,
+            latitude DECIMAL(10,8) NOT NULL,
+            longitude DECIMAL(11,8) NOT NULL,
+            city VARCHAR(100) NULL,
+            region VARCHAR(100) NULL,
+            country VARCHAR(100) NULL,
+            timezone VARCHAR(50) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (timetrack_id) REFERENCES timetrack(id) ON DELETE CASCADE
+        )"""
+        
         activity_logs_table = """
         CREATE TABLE IF NOT EXISTS activity_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -571,6 +586,62 @@ class Database:
         """
         return self.execute_query(query)
         
+    # Métodos para gerenciamento de localização
+    def log_location(self, timetrack_id, lat, lon, details=None):
+        """Registra uma nova localização no banco de dados"""
+        query = """
+            INSERT INTO location_logs (
+                timetrack_id, timestamp, latitude, longitude,
+                city, region, country, timezone
+            )
+            VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s)
+        """
+        params = [
+            timetrack_id, 
+            lat, 
+            lon,
+            details.get('city') if details else None,
+            details.get('region') if details else None,
+            details.get('country') if details else None,
+            details.get('timezone') if details else None
+        ]
+        return self.execute_query(query, tuple(params))
+        
+    def update_timetrack_location(self, timetrack_id, lat, lon):
+        """Atualiza a localização de um registro de ponto específico"""
+        query = """
+            UPDATE timetrack
+            SET location_lat = %s, location_lng = %s
+            WHERE id = %s
+        """
+        return self.execute_query(query, (lat, lon, timetrack_id))
+        
+    def get_location_history(self, user_id, start_date=None, end_date=None):
+        """Retorna o histórico de localizações de um usuário"""
+        base_query = """
+            SELECT 
+                l.*,
+                t.check_in,
+                t.check_out,
+                p.name as project_name
+            FROM location_logs l
+            JOIN timetrack t ON l.timetrack_id = t.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            WHERE t.user_id = %s
+        """
+        params = [user_id]
+        
+        if start_date:
+            base_query += " AND l.timestamp >= %s"
+            params.append(start_date)
+            
+        if end_date:
+            base_query += " AND l.timestamp <= %s"
+            params.append(end_date)
+            
+        base_query += " ORDER BY l.timestamp DESC"
+        return self.execute_query(base_query, tuple(params))
+        
     def update_user_consent(self, user_id, activity_consent=None, location_consent=None):
         """Atualiza as configurações de consentimento do usuário"""
         updates = []
@@ -593,4 +664,42 @@ class Database:
             WHERE id = %s
         """
         params.append(user_id)
+        return self.execute_query(query, tuple(params))
+        
+    def get_project_hourly_rate(self, project_id):
+        """Retorna a taxa horária do projeto."""
+        query = """
+            SELECT hourly_rate
+            FROM projects
+            WHERE id = %s
+        """
+        result = self.execute_query(query, (project_id,))
+        return float(result[0]['hourly_rate']) if result and result[0]['hourly_rate'] else 0
+        
+    def get_project_detailed_stats(self, project_id, start_date=None, end_date=None):
+        """Retorna estatísticas detalhadas do projeto incluindo custos e progresso."""
+        query = """
+            SELECT 
+                p.*,
+                COUNT(DISTINCT t.user_id) as total_users,
+                SUM(t.total_hours) as total_hours,
+                AVG(t.total_hours) as avg_daily_hours,
+                AVG(al.activity_level) as avg_activity,
+                COUNT(DISTINCT tsk.id) as total_tasks,
+                SUM(CASE WHEN tsk.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks,
+                SUM(CASE WHEN tsk.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_tasks
+            FROM projects p
+            LEFT JOIN timetrack t ON p.id = t.project_id
+            LEFT JOIN activity_logs al ON t.id = al.timetrack_id
+            LEFT JOIN tasks tsk ON p.id = tsk.project_id
+            WHERE p.id = %s
+        """
+        params = [project_id]
+        
+        if start_date and end_date:
+            query += " AND (t.date BETWEEN %s AND %s OR t.date IS NULL)"
+            params.extend([start_date, end_date])
+            
+        query += " GROUP BY p.id"
+        
         return self.execute_query(query, tuple(params))
