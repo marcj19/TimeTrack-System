@@ -148,28 +148,7 @@ class DashboardScreen:
         
         self.page_content = ft.Column()
         
-        # --- Componentes do Dialog de Cadastro ---
-        self.reg_fullname_field = ft.TextField(label="Nome Completo", autofocus=True)
-        self.reg_username_field = ft.TextField(label="Usuário (para login)")
-        self.reg_password_field = ft.TextField(label="Senha Temporária", password=True)
-        self.reg_error_text = ft.Text(value="", color=ft.Colors.RED, size=12)
-
-        self.register_dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Cadastrar Novo Colaborador"),
-            content=ft.Column([
-                self.reg_fullname_field,
-                self.reg_username_field,
-                self.reg_password_field,
-                self.reg_error_text
-            ], tight=True, spacing=15),
-            actions=[
-                ft.TextButton("Cancelar", on_click=self.close_dialog),
-                ft.FilledButton("Salvar", on_click=self.handle_register_user),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-        # --- Fim dos novos componentes ---
+        # --- Fim dos componentes ---
 
         self.load_current_status()
         self.load_projects()
@@ -192,39 +171,6 @@ class DashboardScreen:
         if self.checkout_time_picker.value:
             self.checkout_time_field.value = self.checkout_time_picker.value.strftime('%H:%M')
             self.checkout_time_field.update()
-
-    # --- Funções para o Cadastro de Usuário ---
-    def open_register_dialog(self, e):
-        """Abre a janela de diálogo para cadastrar um novo usuário."""
-        self.reg_fullname_field.value = ""
-        self.reg_username_field.value = ""
-        self.reg_password_field.value = ""
-        self.reg_error_text.value = ""
-        
-        self.page.dialog = self.register_dialog
-        self.register_dialog.open = True
-        self.page.update()
-
-    def handle_register_user(self, e):
-        """Valida os dados e chama o AuthManager para registrar o usuário."""
-        fullname = self.reg_fullname_field.value.strip()
-        username = self.reg_username_field.value.strip()
-        password = self.reg_password_field.value.strip()
-
-        if not fullname or not username or not password:
-            self.reg_error_text.value = "Todos os campos são obrigatórios."
-            self.page.dialog.update()
-            return
-        
-        user_id = self.auth.register_user(username, password, fullname, 'colaborador')
-
-        if user_id:
-            self.close_dialog(e)
-            self.show_snackbar(f"Usuário '{fullname}' cadastrado com sucesso!")
-            self.refresh_dashboard()
-        else:
-            self.reg_error_text.value = "Erro: Nome de usuário já existe ou outro erro ocorreu."
-            self.page.dialog.update()
 
     def close_dialog(self, e):
         """Fecha qualquer diálogo aberto"""
@@ -743,10 +689,10 @@ class DashboardScreen:
         weekly_data = self.db.get_weekly_report()
         weekly_chart = WeeklyChart(weekly_data or [], admin_view=True)
 
-        add_user_button = ft.ElevatedButton(
-            "Adicionar Colaborador",
-            icon=ft.Icons.ADD,
-            on_click=self.open_register_dialog,
+        collab_button = ft.ElevatedButton(
+            "Gerenciar Colaboradores",
+            icon=ft.Icons.PEOPLE,
+            on_click=lambda _: self.show_collaborators_screen(),
             style=ft.ButtonStyle(bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
         )
 
@@ -785,7 +731,7 @@ class DashboardScreen:
                     style=ft.ButtonStyle(bgcolor=ft.Colors.INDIGO, color=ft.Colors.WHITE)
                 ),
                 ft.Container(width=10),  # Espaçamento
-                add_user_button
+                collab_button
             ]),
             ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
             ft.Row([users_card.build(), online_card.build(), ft.Container(expand=True)], spacing=20),
@@ -833,6 +779,22 @@ class DashboardScreen:
         self.page_content.update()
         
     def hide_reports_screen(self):
+        """Volta para a tela principal"""
+        self.refresh_dashboard()
+        
+    def show_collaborators_screen(self):
+        """Mostra a tela de gerenciamento de colaboradores"""
+        from components.collaborators_ui import CollaboratorsScreen
+        
+        collaborators_screen = CollaboratorsScreen(
+            self.user,
+            self.db,
+            lambda _: self.hide_collaborators_screen()
+        )
+        self.page_content.controls = [collaborators_screen.build(self.page)]
+        self.page_content.update()
+        
+    def hide_collaborators_screen(self):
         """Volta para a tela principal"""
         self.refresh_dashboard()
         
